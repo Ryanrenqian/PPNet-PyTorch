@@ -27,11 +27,8 @@ import os.path as osp
 import pdb
 @ex.automain
 def main(_run, _config, _log):
-    exp_name = f'{ex.path}_{_config["exp_str"]}'
-    logdir = os.path.join(_config['path']['log_dir'], exp_name)
+    logdir = _config['workspace']
     print('logdir',logdir)
-    print('workspace',_config['workspace'])
-    pdb.set_trace()
 
     category = ['aeroplane','bicycle','bird','boat','bottle','bus','car','cat','chair','cow','diningtable','dog','horse','motorbike','person','pottedplant','sheep','sofa','train','tvmonitor']
 
@@ -53,7 +50,6 @@ def main(_run, _config, _log):
     torch.set_num_threads(1)
 
     print(_config['ckpt_dir'])
-    # tbwriter = SummaryWriter(osp.join(_config['ckpt_dir']))
 
     training_tags = {'loss': "ATraining/total_loss", "query_loss": "ATraining/query_loss",
                      'aligned_loss': "ATraining/aligned_loss", 'base_loss': "ATraining/base_loss",}
@@ -156,9 +152,9 @@ def main(_run, _config, _log):
         base_loss = torch.zeros(1).to(torch.device('cuda'))
         # Forward and Backward
         optimizer.zero_grad()
-        query_pred, _, align_loss = model(support_images, support_fg_mask, support_bg_mask, query_images)
+        query_pred, sup_loss, align_loss = model(support_images, support_fg_mask, support_bg_mask, query_images)
         query_loss = criterion(query_pred, query_labels) #1*3*417*417, 1*417*417
-        loss = query_loss + align_loss * _config['align_loss_scaler'] + base_loss * _config['base_loss_scaler']
+        loss = query_loss + align_loss * _config['align_loss_scaler'] + base_loss * _config['base_loss_scaler'] + sup_loss * _config['sup_loss_scaler']
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -167,10 +163,12 @@ def main(_run, _config, _log):
         query_loss = query_loss.detach().data.cpu().numpy()
         align_loss = align_loss.detach().data.cpu().numpy()
         base_loss = base_loss.detach().data.cpu().numpy()
+        sup_loss = sup_loss.detach().data.cpu().numpy()
 
         log_loss['loss'] += query_loss
         log_loss['align_loss'] += align_loss
         log_loss['base_loss'] += base_loss
+        log_loss['sup_loss'] += sup_loss
 
         # print loss and take snapshots
         if (i_iter + 1) % _config['print_interval'] == 0:
@@ -185,7 +183,7 @@ def main(_run, _config, _log):
             metrics['query_loss'] = query_loss
             metrics['aligned_loss'] = align_loss
             metrics['base_loss'] = base_loss
-
+            metric['sup_loss'] = sup_loss
             for k, v in metrics.items():
                 _run.add_scalar(training_tags[k], v, i_iter)
 
