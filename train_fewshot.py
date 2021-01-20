@@ -22,23 +22,26 @@ from config import ex
 from util.metric import Metric
 import tqdm
 import torch.nn.functional as F
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 import os.path as osp
-
+import pdb
 @ex.automain
 def main(_run, _config, _log):
+    exp_name = f'{ex.path}_{_config["exp_str"]}'
+    logdir = os.path.join(_config['path']['log_dir'], exp_name)
+    print('logdir',logdir)
+    print('workspace',_config['workspace'])
+    pdb.set_trace()
 
-    logdir = f'{_run.observers[0].dir}/'
-    print(logdir)
     category = ['aeroplane','bicycle','bird','boat','bottle','bus','car','cat','chair','cow','diningtable','dog','horse','motorbike','person','pottedplant','sheep','sofa','train','tvmonitor']
 
     if _run.observers:
-        os.makedirs(f'{_run.observers[0].dir}/snapshots', exist_ok=True)
+        os.makedirs(f'{logdir}/snapshots', exist_ok=True)
         for source_file, _ in _run.experiment_info['sources']:
-            os.makedirs(os.path.dirname(f'{_run.observers[0].dir}/source/{source_file}'),
+            os.makedirs(os.path.dirname(f'{logdir}/source/{source_file}'),
                         exist_ok=True)
-            _run.observers[0].save_file(source_file, f'source/{source_file}')
-        shutil.rmtree(f'{_run.observers[0].basedir}/_sources')
+            shutil.copy(source_file, f'source/{source_file}')
+        # shutil.rmtree(f'{logdir}/_sources')
 
     data_name = _config['dataset']
     max_label=20 if data_name == 'VOC' else 80
@@ -50,7 +53,7 @@ def main(_run, _config, _log):
     torch.set_num_threads(1)
 
     print(_config['ckpt_dir'])
-    tbwriter = SummaryWriter(osp.join(_config['ckpt_dir']))
+    # tbwriter = SummaryWriter(osp.join(_config['ckpt_dir']))
 
     training_tags = {'loss': "ATraining/total_loss", "query_loss": "ATraining/query_loss",
                      'aligned_loss': "ATraining/aligned_loss", 'base_loss': "ATraining/base_loss",}
@@ -183,8 +186,8 @@ def main(_run, _config, _log):
             metrics['aligned_loss'] = align_loss
             metrics['base_loss'] = base_loss
 
-            # for k, v in metrics.items():
-            #     tbwriter.add_scalar(training_tags[k], v, i_iter)
+            for k, v in metrics.items():
+                _run.add_scalar(training_tags[k], v, i_iter)
 
         if (i_iter + 1) % _config['evaluate_interval'] == 0:
             _log.info('###### Evaluation begins ######')
@@ -252,7 +255,7 @@ def main(_run, _config, _log):
                     metrics['mean_iou_binary'] = meanIoU_binary
 
                     for k, v in metrics.items():
-                        tbwriter.add_scalar(infer_tags[k], v, i_iter)
+                        _run.add_scalar(infer_tags[k], v, i_iter)
 
                     if meanIoU > highest_iou:
                         print(f'The highest iou is in iter: {i_iter} : {meanIoU}, save: {_config["ckpt_dir"]}/best.pth')
@@ -352,20 +355,20 @@ def main(_run, _config, _log):
     _log.info(f'meanIoU_binary std: {meanIoU_std_binary}')
 
     _log.info("## ------------------------------------------ ##")
-    _log.info(f'###### Setting: {_run.observers[0].dir} ######')
+    _log.info(f'###### Setting: {logdir} ######')
 
     _log.info("Running {num_run} runs, meanIoU:{miou:.4f}, meanIoU_binary:{mbiou:.4f} "
                      "meanIoU_std:{miou_std:.4f}, meanIoU_binary_std:{mbiou_std:.4f}".format(
         num_run=5, miou=meanIoU, mbiou=meanIoU_binary, miou_std=meanIoU_std,
         mbiou_std=meanIoU_std_binary))
-    _log.info(f"Current setting is {_run.observers[0].dir}")
+    _log.info(f"Current setting is {logdir}")
 
 
     print("Running {num_run} runs, meanIoU:{miou:.4f}, meanIoU_binary:{mbiou:.4f} "
                      "meanIoU_std:{miou_std:.4f}, meanIoU_binary_std:{mbiou_std:.4f}".format(
         num_run=5, miou=meanIoU, mbiou=meanIoU_binary, miou_std=meanIoU_std,
         mbiou_std=meanIoU_std_binary))
-    print(f"Current setting is {_run.observers[0].dir}")
+    print(f"Current setting is {logdir}")
     print(_config['ckpt_dir'])
     print(logdir)
 

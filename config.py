@@ -6,7 +6,7 @@ import itertools
 
 import sacred
 from sacred import Experiment
-from sacred.observers import FileStorageObserver
+from sacred.observers import FileStorageObserver,MongoObserver
 from sacred.utils import apply_backspaces_and_linefeeds
 
 sacred.SETTINGS['CONFIG']['READ_ONLY_CONFIG'] = False
@@ -112,6 +112,8 @@ def cfg():
 def add_observer(config, command_name, logger):
     """A hook fucntion to add observer"""
     exp_name = f'{ex.path}_{config["exp_str"]}'
-    observer = FileStorageObserver.create(os.path.join(config['path']['log_dir'], exp_name))
+    observer = MongoObserver()
+    # observer = FileStorageObserver.create(os.path.join(config['path']['log_dir'], exp_name))
     ex.observers.append(observer)
+    config['workspace'] = os.path.join(config['path']['log_dir'], exp_name)
     return config
